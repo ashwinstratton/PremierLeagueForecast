@@ -1,0 +1,99 @@
+---
+title: "Final Project"
+output: html_document
+---
+
+## Run to get started
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+```
+
+# Run to load in results of the data from FB Reference
+```{r}
+Prem <- read_csv("https://raw.githubusercontent.com/ashwinstratton/Forecasting-Final-Datasets/main/PremData.csv")
+```
+## Run to see the data that you just loaded
+```{r}
+Prem
+```
+
+## This histogram provides us the distribution of the data on a visual perspective (Poisson)
+```{r}
+ggplot(data = Prem, aes(x=Gls)) +
+  geom_bar(stat="count")
+```
+
+Model : Poisson
+
+## Model 2 is what we were happiest with, in terms of statistically significant variables
+
+```{r}
+PremScorersGLM <- glm(Gls ~ PrgC...23 + Sh + GCA + TO...78 + PKatt...16 , family = "poisson", data=Prem) 
+#Variables - Progressive Carries, Shots, Goal Creating Actions, Take-Ons, Penalty Kick Attempts
+summary(PremScorersGLM)
+```
+
+```{r}
+PremScorersGLM2 <- glm(Gls ~ PrgC...23 + Sh + SoTPercent + SCA + Dist + Prem$`90s` , family = "poisson", data=Prem) 
+#Variables - Progressive Carries, Shots, Shots on Targer Percentage, Shot Creating Actions, Avg Shot Distance, 90s Played (Total Minutes/90)
+summary(PremScorersGLM2)
+```
+
+```{r}
+PremScorersGLM3 <- glm(Gls ~ PrgC...23 + Sh + CPA + TO...78 + PKatt...16 + SoT90 + SoTPercent , family = "poisson", data=Prem) 
+#Variables - Progressive Carries, Shots, Carries into Penalty Area, Take-Ons, Pentalty Kick Attempts, Shots on Target per 90, and Shots on Target Percentage
+summary(PremScorersGLM3)
+```
+## Predictions for each players goals scored per season
+```{r}
+# Create predictions
+predictions2 <- predict(PremScorersGLM2, Prem, type = 'response')
+# Check the output
+predictions2
+```
+
+## Combining predictions and original data into a single data frame
+```{r}
+# Add predictions to test data and create new data frame
+predictDF <- data.frame(Prem, predictions2)
+```
+
+## Creating dataframe with only needed variables and seeing if the prediction is True (Rounded prediction = Actual goals) or False (Rounded prediction != Actual Goals)
+```{r}
+# Create new data frame with less columns
+FinalPredictions <- select(predictDF, "Player", "Pos", "Gls", "predictions2")
+# Add rounded predictions as a column
+FinalPredictions$roundedPredictions <- round(FinalPredictions$predictions, 0)
+# Create Boolean Column to see if real and predictions match
+FinalPredictions$TFmatch <- FinalPredictions$Gls == FinalPredictions$roundedPredictions
+# Check data structure 
+FinalPredictions
+```
+
+##Getting the overall True/False ratio of the whole data set (NA is goalkeepers who almost never score)
+```{r}
+results_table <- FinalPredictions %>%
+  group_by(TFmatch) %>%
+  summarise(count = n())
+results_table
+```
+
+## Simple linear model to get p-value for whether actual goals are a significant predictior
+
+```{r}
+fitLM <- lm(Gls ~ roundedPredictions, data = FinalPredictions)
+summary(fitLM)
+```
+
+## Looking at top scorers actual goals vs. rounded predicted goals and again determining (Rounded prediction = Actual goals) or False (Rounded prediction != Actual Goals)
+```{r}
+TopGoalScorers <- FinalPredictions %>% 
+  arrange(desc(Gls)) %>%
+   select(Player, Gls, roundedPredictions, TFmatch)
+
+TopGoalScorers
+```
+
